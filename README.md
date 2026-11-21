@@ -1,4 +1,4 @@
-# 🚀 MyX Tunnel v1.0.0
+# 🚀 MyX Tunnel v1.1.0
 
 **تانل ریورس پرسرعت ایران ↔ خارج** — اسکریپت حرفه‌ای مدیریت تانل در سطح اسکریپت‌های معروف ایرانی، با منوی رنگی کامل و نصب تک‌دستوری.
 
@@ -6,16 +6,9 @@
 
 ## ⚡ نصب تک‌دستوری
 
-روی سرور (ایران یا خارج) بزنید:
+اسکریپت را روی سرور (ایران یا خارج) آپلود کنید و بزنید:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/MOHAMMAD-a12/myx-tunnel/main/myx-tunnel.sh)
-```
-
-یا دانلود و اجرای محلی:
-
-```bash
-curl -fLO https://raw.githubusercontent.com/MOHAMMAD-a12/myx-tunnel/main/myx-tunnel.sh
 bash myx-tunnel.sh
 ```
 
@@ -25,6 +18,12 @@ bash myx-tunnel.sh
 myx          # باز کردن منوی اصلی
 myx menu     # باز کردن منو
 myx version  # نمایش نسخه
+```
+
+برای انتشار عمومی (بعد از آپلود روی گیت‌هاب خودتان):
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/YOUR-USER/myx-tunnel/main/myx-tunnel.sh)
 ```
 
 ---
@@ -47,7 +46,7 @@ myx version  # نمایش نسخه
 ```bash
 bash myx-tunnel.sh
 # 1) Install Tunnel (Wizard)
-# 2) Install on KHAREJ server
+# 2) LISTENER side
 # پروتکل را انتخاب کنید (مثلا FRP)
 # پورت را وارد کنید
 # ⚠️ توکن نمایش داده شده را کپی کنید!
@@ -57,12 +56,25 @@ bash myx-tunnel.sh
 ```bash
 bash myx-tunnel.sh
 # 1) Install Tunnel (Wizard)
-# 1) Install on IRAN server
+# 1) SERVICE / EXIT side
 # همان پروتکل مرحله ۱
 # IP سرور خارج + توکن + پورت سرویس لوکال (مثلا 443) + پورت روی خارج
 ```
 
 ✅ کاربران از پورت سرور خارج وصل می‌شوند و ترافیک از تانل به سرویس روی سرور ایران می‌رسد.
+
+---
+
+## 🔁 حالت برعکس (Reverse Mode) — IP ایران در کانفیگ، خروجی از خارج
+
+اگر می‌خواهید کاربران به **IP سرور ایران** وصل شوند ولی خروجی اینترنتشان از **سرور خارج** باشد:
+
+| سرور | انتخاب در Wizard | ورودی‌ها |
+|---|---|---|
+| **سرور ایران** | `2) LISTENER side` + IPTables / Realm / Socat | پورت لیستن روی ایران + **IP سرور خارج** به عنوان مقصد + پورت سرویس روی خارج |
+| **سرور خارج** | (برای FRP برعکس) `1) SERVICE side` + FRP | IP سرور ایران + توکن + پورت سرویس روی خارج + پورت ریوت روی ایران |
+
+⚠️ **شرط:** پورت لیستن روی سرور ایران باید برای کاربران ایرانی باز و قابل دسترسی باشد.
 
 ---
 
@@ -74,7 +86,7 @@ bash myx-tunnel.sh
 - **[4] Start/Stop/Restart** — کنترل همه سرویس‌ها
 - **[5] Speed Optimization** — فعال‌سازی BBR + تنظیمات بافر شبکه (حداکثر سرعت)
 - **[6] Speed Test** — تست سرعت سرور
-- **[7] Anti-DPI Mode** — تبدیل Gost به WSS (استلوث)، چرخش پورت، MSS Clamp
+- **[7] Anti-DPI Mode** — تبدیل Gost به WSS (استalth)، چرخش پورت، MSS Clamp
 - **[8] Update** — بروزرسانی باینری‌ها
 - **[9] Uninstall** — حذف کامل
 

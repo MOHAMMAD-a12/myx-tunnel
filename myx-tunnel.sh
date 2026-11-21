@@ -12,7 +12,7 @@
 #   Compatible: Ubuntu 22.04 / 24.04 (Debian 11/12)
 # ============================================================
 
-MYX_VERSION="1.0.0"
+MYX_VERSION="1.1.0"
 MYX_DIR="/etc/myx"
 MYX_TUN_DIR="$MYX_DIR/tunnels"
 MYX_BIN="/usr/local/bin"
@@ -236,15 +236,15 @@ EOF
 setup_frp_iran() {
     install_frp || return 1
     local kip port token lname lport rport
-    read -rp "Kharej (Foreign) server IP: " kip
+    read -rp "Listener server IP (users connect to this server): " kip
     valid_ip "$kip" || { msg_err "Invalid IP"; return 1; }
     read -rp "FRP bind port on kharej [default: 7000]: " port
     port=${port:-7000}
     read -rp "FRP token (from kharej server): " token
     [ -z "$token" ] && { msg_err "Token required!"; return 1; }
-    read -rp "Local service port on IRAN (e.g. 443): " lport
+    read -rp "Local service port on THIS server (e.g. 443): " lport
     valid_port "$lport" || { msg_err "Invalid port"; return 1; }
-    read -rp "Remote port on KHAREJ users connect to (e.g. 8443): " rport
+    read -rp "Remote port on LISTENER server (users connect there, e.g. 8443): " rport
     valid_port "$rport" || { msg_err "Invalid port"; return 1; }
     read -rp "Protocol type (tcp/udp) [default: tcp]: " ptype
     ptype=${ptype:-tcp}
@@ -283,7 +283,7 @@ EOF
     save_tunnel "$lname" "proto=frp" "role=iran" "kharej_ip=$kip" "bind=$port" \
         "token=$token" "local_port=$lport" "remote_port=$rport" "ptype=$ptype"
     msg_ok "FRP tunnel '$lname' created"
-    echo -e " Users connect to: ${GREEN}${kip}:${rport}${NC}  -->  IRAN:${lport}"
+    echo -e " Users connect to: ${GREEN}${kip}:${rport}${NC}  -->  SERVICE:${lport}"
 }
 
 # ---------- Realm ----------
@@ -291,11 +291,11 @@ setup_realm_kharej() {
     install_realm || return 1
     enable_ip_forward
     local lip tip tport
-    read -rp "Listen port on KHAREJ (users connect, e.g. 8443): " lip
+    read -rp "Listen port on THIS server (users connect here, e.g. 8443): " lip
     valid_port "$lip" || { msg_err "Invalid port"; return 1; }
-    read -rp "IRAN server IP: " tip
+    read -rp "Destination server IP (where your service runs): " tip
     valid_ip "$tip" || { msg_err "Invalid IP"; return 1; }
-    read -rp "Target port on IRAN (e.g. 443): " tport
+    read -rp "Target service port on destination (e.g. 443): " tport
     valid_port "$tport" || { msg_err "Invalid port"; return 1; }
 
     mkdir -p "$MYX_DIR/realm"
@@ -332,7 +332,7 @@ EOF
 setup_gost_kharej() {
     install_gost || return 1
     local port transport
-    read -rp "Gost relay port on KHAREJ [default: 27000]: " port
+    read -rp "Gost relay port on THIS server [default: 27000]: " port
     port=${port:-27000}
     read -rp "Transport (tls / ws / wss) [default: tls]: " transport
     transport=${transport:-tls}
@@ -349,22 +349,22 @@ setup_gost_kharej() {
     echo -e " ${WHITE}Kharej IP   :${NC} $my_ip"
     echo -e " ${WHITE}Relay Port  :${NC} $port"
     echo -e " ${WHITE}Transport   :${NC} $transport"
-    echo -e "${GRAY}>>> Now run MyX Tunnel on IRAN server (Gost -> Iran) <<<${NC}"
+    echo -e "${GRAY}>>> Now run MyX Tunnel on the SERVICE server (Gost client) <<<${NC}"
     echo -e "${GREEN}=========================================================${NC}"
 }
 
 setup_gost_iran() {
     install_gost || return 1
     local kip kport lport rport transport udp
-    read -rp "Kharej server IP: " kip
+    read -rp "Listener server IP: " kip
     valid_ip "$kip" || { msg_err "Invalid IP"; return 1; }
-    read -rp "Gost relay port on kharej [default: 27000]: " kport
+    read -rp "Gost relay port on listener [default: 27000]: " kport
     kport=${kport:-27000}
     read -rp "Transport (tls / ws / wss) [default: tls]: " transport
     transport=${transport:-tls}
-    read -rp "Local service port on IRAN (e.g. 443): " lport
+    read -rp "Local service port on THIS server (e.g. 443): " lport
     valid_port "$lport" || { msg_err "Invalid port"; return 1; }
-    read -rp "Remote port on KHAREJ users connect to (e.g. 8443): " rport
+    read -rp "Remote port on LISTENER server (users connect there, e.g. 8443): " rport
     valid_port "$rport" || { msg_err "Invalid port"; return 1; }
     read -rp "Enable UDP too? (y/n) [default: n]: " udp
     [[ "$udp" =~ ^[Yy] ]] && udp="y" || udp="n"
@@ -380,18 +380,18 @@ setup_gost_iran() {
     save_tunnel "gost-${rport}" "proto=gost" "role=iran" "kharej_ip=$kip" "kharej_port=$kport" \
         "transport=$transport" "local_port=$lport" "remote_port=$rport" "udp=$udp"
     msg_ok "Gost tunnel created"
-    echo -e " Users connect to: ${GREEN}${kip}:${rport}${NC}  -->  IRAN:${lport}"
+    echo -e " Users connect to: ${GREEN}${kip}:${rport}${NC}  -->  SERVICE:${lport}"
 }
 
 # ---------- IPTables ----------
 setup_iptables_kharej() {
     enable_ip_forward
     local lip tip tport ptype
-    read -rp "Listen port on KHAREJ (users connect, e.g. 8443): " lip
+    read -rp "Listen port on THIS server (users connect here, e.g. 8443): " lip
     valid_port "$lip" || { msg_err "Invalid port"; return 1; }
-    read -rp "IRAN server IP: " tip
+    read -rp "Destination server IP (where your service runs): " tip
     valid_ip "$tip" || { msg_err "Invalid IP"; return 1; }
-    read -rp "Target port on IRAN (e.g. 443): " tport
+    read -rp "Target service port on destination (e.g. 443): " tport
     valid_port "$tport" || { msg_err "Invalid port"; return 1; }
     read -rp "Protocol (tcp/udp/both) [default: tcp]: " ptype
     ptype=${ptype:-tcp}
@@ -443,11 +443,11 @@ EOF
 # ---------- Socat ----------
 setup_socat_kharej() {
     local lip tip tport udp
-    read -rp "Listen port on KHAREJ (users connect, e.g. 8443): " lip
+    read -rp "Listen port on THIS server (users connect here, e.g. 8443): " lip
     valid_port "$lip" || { msg_err "Invalid port"; return 1; }
-    read -rp "IRAN server IP: " tip
+    read -rp "Destination server IP (where your service runs): " tip
     valid_ip "$tip" || { msg_err "Invalid IP"; return 1; }
-    read -rp "Target port on IRAN (e.g. 443): " tport
+    read -rp "Target service port on destination (e.g. 443): " tport
     valid_port "$tport" || { msg_err "Invalid port"; return 1; }
     read -rp "Protocol (tcp/udp) [default: tcp]: " udp
     udp=${udp:-tcp}
@@ -471,8 +471,16 @@ setup_socat_kharej() {
 # ============================================================
 wizard() {
     clear; banner
-    echo -e " ${WHITE}[ 1 ]${NC} Install on ${CYAN}IRAN${NC} server"
-    echo -e " ${WHITE}[ 2 ]${NC} Install on ${YELLOW}KHAREJ${NC} (Foreign) server"
+    echo -e "${WHITE}>> Choose the role of THIS server${NC}"
+    echo ""
+    echo -e " ${WHITE}[ 1 ]${NC} ${CYAN}SERVICE / EXIT side${NC} - your proxy service runs here"
+    echo -e "       ${GRAY}Users do NOT connect to this IP. This side dials out through the tunnel.${NC}"
+    echo -e "       ${GRAY}Classic mode: Iran server   |   Reverse mode: Foreign (Kharej) server${NC}"
+    echo ""
+    echo -e " ${WHITE}[ 2 ]${NC} ${YELLOW}LISTENER side${NC} - users connect to THIS server's IP"
+    echo -e "       ${GRAY}This IP goes into the client config (Address field).${NC}"
+    echo -e "       ${GRAY}Classic mode: Foreign (Kharej) server   |   Reverse mode: Iran server${NC}"
+    echo ""
     echo -e " ${WHITE}[ 0 ]${NC} Exit"
     echo ""
     read -rp " Select role: " role
@@ -505,7 +513,7 @@ wizard() {
         case "$sproto" in
             frp)  setup_frp_iran ;;
             gost) setup_gost_iran ;;
-            *)    msg_err "${sproto} on IRAN server is not needed (only kharej side)."; return 1 ;;
+            *)    msg_err "${sproto} runs on the LISTENER side (role 2). On this server choose FRP or Gost instead."; return 1 ;;
         esac
     else
         case "$sproto" in
@@ -748,7 +756,7 @@ uninstall_myx() {
 # ============================================================
 show_menu() {
     clear; banner
-    echo -e "  ${WHITE}[ 1 ]${NC} Install Tunnel (Wizard)      ${GRAY}- Iran / Kharej setup${NC}"
+    echo -e "  ${WHITE}[ 1 ]${NC} Install Tunnel (Wizard)      ${GRAY}- Listener / Service setup${NC}"
     echo -e "  ${WHITE}[ 2 ]${NC} Tunnels Status               ${GRAY}- list & health check${NC}"
     echo -e "  ${WHITE}[ 3 ]${NC} Remove Tunnel"
     echo -e "  ${WHITE}[ 4 ]${NC} Start / Stop / Restart"
