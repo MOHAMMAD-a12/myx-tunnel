@@ -12,7 +12,7 @@
 #   Compatible: Ubuntu 22.04 / 24.04 (Debian 11/12)
 # ============================================================
 
-MYX_VERSION="1.1.0"
+MYX_VERSION="1.2.0"
 MYX_DIR="/etc/myx"
 MYX_TUN_DIR="$MYX_DIR/tunnels"
 MYX_BIN="/usr/local/bin"
@@ -471,27 +471,53 @@ setup_socat_kharej() {
 # ============================================================
 wizard() {
     clear; banner
-    echo -e "${WHITE}>> Choose the role of THIS server${NC}"
+    # -------- Step 1: Mode --------
+    echo -e "${WHITE}>> Step 1/3 - Select tunnel MODE${NC}"
     echo ""
-    echo -e " ${WHITE}[ 1 ]${NC} ${CYAN}SERVICE / EXIT side${NC} - your proxy service runs here"
-    echo -e "       ${GRAY}Users do NOT connect to this IP. This side dials out through the tunnel.${NC}"
-    echo -e "       ${GRAY}Classic mode: Iran server   |   Reverse mode: Foreign (Kharej) server${NC}"
+    echo -e " ${WHITE}[ 1 ]${NC} ${GREEN}Classic Mode${NC}"
+    echo -e "       ${GRAY}Users connect to FOREIGN IP  ->  exit from IRAN${NC}"
+    echo -e "       ${GRAY}Client config Address = Foreign (Kharej) server IP${NC}"
     echo ""
-    echo -e " ${WHITE}[ 2 ]${NC} ${YELLOW}LISTENER side${NC} - users connect to THIS server's IP"
-    echo -e "       ${GRAY}This IP goes into the client config (Address field).${NC}"
-    echo -e "       ${GRAY}Classic mode: Foreign (Kharej) server   |   Reverse mode: Iran server${NC}"
+    echo -e " ${WHITE}[ 2 ]${NC} ${GREEN}Reverse Mode (IP Iran)${NC}"
+    echo -e "       ${GRAY}Users connect to IRAN IP  ->  exit from FOREIGN server${NC}"
+    echo -e "       ${GRAY}Client config Address = Iran server IP${NC}"
     echo ""
-    echo -e " ${WHITE}[ 0 ]${NC} Exit"
-    echo ""
-    read -rp " Select role: " role
-    case "$role" in
-        1) local srole="iran" ;;
-        2) local srole="kharej" ;;
+    read -rp " Select mode [1/2]: " mode
+    case "$mode" in
+        1) local smode="classic"; local exit_side="IRAN"; local listen_side="FOREIGN (Kharej)" ;;
+        2) local smode="reverse"; local exit_side="FOREIGN (Kharej)"; local listen_side="IRAN" ;;
         0) exit 0 ;;
         *) msg_err "Invalid choice"; return 1 ;;
     esac
 
+    # -------- Step 2: Which server --------
     clear; banner
+    echo -e "${WHITE}>> Step 2/3 - Which server are you on NOW?${NC}"
+    echo ""
+    echo -e "${GRAY}Mode: ${smode}  |  users connect to: ${listen_side}  |  exit: ${exit_side}${NC}"
+    echo ""
+    echo -e " ${WHITE}[ 1 ]${NC} This is the ${CYAN}IRAN${NC} server"
+    echo -e " ${WHITE}[ 2 ]${NC} This is the ${YELLOW}KHAREJ${NC} (Foreign) server"
+    echo ""
+    read -rp " Select server: " role
+    case "$role" in
+        1) local this_server="iran" ;;
+        2) local this_server="kharej" ;;
+        0) exit 0 ;;
+        *) msg_err "Invalid choice"; return 1 ;;
+    esac
+
+    # internal side: listener = the server users connect to
+    if [ "$smode" = "classic" ]; then
+        if [ "$this_server" = "kharej" ]; then local side="listener"; else local side="service"; fi
+    else
+        if [ "$this_server" = "iran" ]; then local side="listener"; else local side="service"; fi
+    fi
+
+    # -------- Step 3: Protocol --------
+    clear; banner
+    echo -e "${WHITE}>> Step 3/3 - Select PROTOCOL${NC}"
+    echo ""
     echo -e " ${WHITE}[ 1 ]${NC} ${GREEN}FRP${NC}      - Reverse Tunnel (best for heavy filtering)"
     echo -e " ${WHITE}[ 2 ]${NC} ${GREEN}Realm${NC}    - Fast direct forward (low CPU)"
     echo -e " ${WHITE}[ 3 ]${NC} ${GREEN}Gost${NC}     - Encrypted relay tunnel (anti-DPI)"
@@ -508,22 +534,28 @@ wizard() {
         *) msg_err "Invalid choice"; return 1 ;;
     esac
 
-    # Validation combos
-    if [ "$srole" = "iran" ]; then
-        case "$sproto" in
-            frp)  setup_frp_iran ;;
-            gost) setup_gost_iran ;;
-            *)    msg_err "${sproto} runs on the LISTENER side (role 2). On this server choose FRP or Gost instead."; return 1 ;;
-        esac
-    else
-        case "$sproto" in
-            frp)      setup_frp_kharej ;;
-            realm)    setup_realm_kharej ;;
-            gost)     setup_gost_kharej ;;
-            iptables) setup_iptables_kharej ;;
-            socat)    setup_socat_kharej ;;
-        esac
-    fi
+    echo ""
+    msg_info "Plan: users connect to ${YELLOW}${listen_side}${NC} IP  ->  exit from ${CYAN}${exit_side}${NC}  |  protocol: ${GREEN}${sproto}${NC}"
+    echo ""
+
+    case "$side" in
+        listener)
+            case "$sproto" in
+                frp)      setup_frp_kharej ;;
+                realm)    setup_realm_kharej ;;
+                gost)     setup_gost_kharej ;;
+                iptables) setup_iptables_kharej ;;
+                socat)    setup_socat_kharej ;;
+            esac
+            ;;
+        service)
+            case "$sproto" in
+                frp)  setup_frp_iran ;;
+                gost) setup_gost_iran ;;
+                *)    msg_err "${sproto} only runs on the LISTENER side (the server users connect to). Run the wizard on the ${listen_side} server for this protocol."; return 1 ;;
+            esac
+            ;;
+    esac
     echo ""
     read -rp " Press Enter to continue..."
 }
