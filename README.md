@@ -1,4 +1,4 @@
-# 🚀 MyX Tunnel v1.2.1
+# 🚀 MyX Tunnel v1.3.0
 
 **تانل ریورس پرسرعت ایران ↔ خارج** — اسکریپت حرفه‌ای مدیریت تانل با منوی رنگی کامل و نصب تک‌دستوری.
 
@@ -16,7 +16,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/MOHAMMAD-a12/myx-tunnel/main/m
 
 1. **انتخاب حالت تانل** — Classic (IP خارج در کانفیگ) یا Reverse (IP ایران در کانفیگ)
 2. **انتخاب سرور فعلی** — این سرور ایران است یا خارج
-3. **انتخاب پروتکل** — FRP / Realm / Gost / IPTables / Socat
+3. **انتخاب پروتکل** — FRP / Realm / Gost / IPTables / Socat / **Backhaul**
 
 پس از نصب اولیه، دستور `myx` در هر جای سرور منوی مدیریت را باز می‌کند:
 
@@ -37,6 +37,9 @@ myx version  # نمایش نسخه
 | **Gost** | ریورس رمزنگاری‌شده (TLS / WS / WSS) | ضد DPI و دور زدن شناسایی ترافیک |
 | **IPTables** | NAT سطح کرنل | کمترین تأخیر، حداکثر سرعت |
 | **Socat** | فوروارد ساده TCP/UDP | تست سریع و راه‌اندازی آسان |
+| **Backhaul** | ریورس نسل جدید (TCP/WS/WSS + UDP over TCP + Multiplexing) | پرسرعت برای اتصالات همزمان زیاد |
+
+> **Backhaul** نصب شده از ریلیز رسمی [Musixal/Backhaul](https://github.com/Musixal/Backhaul) و ترنسپورت‌های `tcp / tcpmux / ws / wss / wsmux / wssmux` را پشتیبانی می‌کند (گواهی TLS برای WSS خودکار ساخته می‌شود) + مانیتور وب.
 
 ---
 

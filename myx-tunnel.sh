@@ -12,7 +12,7 @@
 #   Compatible: Ubuntu 22.04 / 24.04 (Debian 11/12)
 # ============================================================
 
-MYX_VERSION="1.2.1"
+MYX_VERSION="1.3.0"
 MYX_DIR="/etc/myx"
 MYX_TUN_DIR="$MYX_DIR/tunnels"
 MYX_BIN="/usr/local/bin"
@@ -148,6 +148,21 @@ install_gost() {
     gunzip -f "$tmp"
     mv /tmp/myx-gost "$MYX_BIN/gost"; chmod +x "$MYX_BIN/gost"
     msg_ok "Gost installed"
+}
+
+install_backhaul() {
+    [ -x "$MYX_BIN/backhaul" ] && return 0
+    local ver="0.7.2" arch; arch=$(detect_arch)
+    msg_info "Downloading Backhaul v${ver}..."
+    local url="https://github.com/Musixal/Backhaul/releases/download/v${ver}/backhaul_linux_${arch}.tar.gz"
+    local tmp="/tmp/myx-backhaul.tgz"
+    if ! curl -sL --connect-timeout 15 "$url" -o "$tmp"; then
+        msg_err "Download failed!"; return 1
+    fi
+    tar -xzf "$tmp" -C /tmp
+    mv /tmp/backhaul "$MYX_BIN/backhaul"; chmod +x "$MYX_BIN/backhaul"
+    rm -f "$tmp"
+    msg_ok "Backhaul installed"
 }
 
 # ============================================================
@@ -384,6 +399,119 @@ setup_gost_iran() {
     echo -e " Users connect to: ${GREEN}${kip}:${rport}${NC}  -->  SERVICE:${lport}"
 }
 
+# ---------- Backhaul ----------
+setup_backhaul_listener() {
+    install_backhaul || return 1
+    local bind token transport lport tip tport web udp_line tls=""
+    read -rp "Backhaul channel port (tunnel link, e.g. 3080): " bind
+    valid_port "$bind" || { msg_err "Invalid port"; return 1; }
+    read -rp "Transport (tcp/tcpmux/ws/wss/wsmux/wssmux) [default: tcp]: " transport
+    transport=${transport:-tcp}
+    case "$transport" in tcp|tcpmux|ws|wss|wsmux|wssmux) ;; *) msg_err "Invalid transport"; return 1 ;; esac
+    read -rp "Listen port on THIS server (users connect, e.g. 8443): " lport
+    valid_port "$lport" || { msg_err "Invalid port"; return 1; }
+    read -rp "Target service IP on service side [default: 127.0.0.1]: " tip
+    tip=${tip:-127.0.0.1}
+    read -rp "Target service port on service side (e.g. 443): " tport
+    valid_port "$tport" || { msg_err "Invalid port"; return 1; }
+    read -rp "Web interface port (0=disable) [default: 2060]: " web
+    web=${web:-2060}
+    token=$(rand_token)
+
+    case "$transport" in tcp|tcpmux) udp_line="accept_udp = true" ;; esac
+    case "$transport" in
+        wss|wssmux)
+            command -v openssl >/dev/null 2>&1 || apt-get install -y openssl >/dev/null 2>&1
+            mkdir -p /etc/myx/backhaul
+            [ -f /etc/myx/backhaul/server.crt ] || openssl req -x509 -newkey rsa:2048 -nodes \
+                -keyout /etc/myx/backhaul/server.key -out /etc/myx/backhaul/server.crt \
+                -days 3650 -subj "/CN=myx" >/dev/null 2>&1
+            tls="tls_cert = \"/etc/myx/backhaul/server.crt\"
+tls_key = \"/etc/myx/backhaul/server.key\"" ;;
+    esac
+
+    mkdir -p /etc/myx/backhaul
+    cat > /etc/myx/backhaul/server.toml << EOF
+[server]
+bind_addr = "0.0.0.0:${bind}"
+transport = "${transport}"
+token = "${token}"
+${udp_line}
+nodelay = true
+keepalive_period = 75
+heartbeat = 40
+channel_size = 2048
+sniffer = false
+web_port = ${web}
+sniffer_log = "/etc/myx/backhaul/log.json"
+log_level = "info"
+${tls}
+ports = [
+  "${lport}=${tip}:${tport}"
+]
+EOF
+
+    create_service "myx-backhaul-server.service" "MyX Tunnel - Backhaul Server (Listener)" \
+        "$MYX_BIN/backhaul -c /etc/myx/backhaul/server.toml" ""
+    systemctl enable --now myx-backhaul-server.service >/dev/null 2>&1
+
+    save_tunnel "backhaul-${lport}" "proto=backhaul" "role=listener" "bind=$bind" \
+        "transport=$transport" "token=$token" "listen=$lport" "target_ip=$tip" "target_port=$tport" "web=$web"
+    my_ip=$(my_public_ip)
+    echo ""
+    echo -e "${GREEN}=============== BACKHAUL LISTENER INSTALLED ===============${NC}"
+    echo -e " ${WHITE}Listener IP :${NC} $my_ip"
+    echo -e " ${WHITE}Users port  :${NC} $lport  ->  service ${tip}:${tport}"
+    echo -e " ${WHITE}Channel port:${NC} $bind   |  Transport: $transport"
+    echo -e " ${WHITE}Token       :${NC} ${YELLOW}$token${NC}"
+    [ "$web" != "0" ] && echo -e " ${WHITE}Web monitor :${NC} http://$my_ip:$web"
+    echo -e "${GRAY}>>> Now run MyX Tunnel on the SERVICE server (Backhaul -> Client) <<<${NC}"
+    echo -e "${GREEN}==========================================================${NC}"
+    echo -e "$token" > /etc/myx/backhaul/.token
+}
+
+setup_backhaul_service() {
+    install_backhaul || return 1
+    local lip bind token transport web
+    read -rp "Listener server IP: " lip
+    valid_ip "$lip" || { msg_err "Invalid IP"; return 1; }
+    read -rp "Backhaul channel port on listener [default: 3080]: " bind
+    bind=${bind:-3080}
+    read -rp "Transport (same as listener: tcp/tcpmux/ws/wss/wsmux/wssmux) [default: tcp]: " transport
+    transport=${transport:-tcp}
+    read -rp "Backhaul token (from listener server): " token
+    [ -z "$token" ] && { msg_err "Token required!"; return 1; }
+    read -rp "Web interface port (0=disable) [default: 2060]: " web
+    web=${web:-2060}
+
+    mkdir -p /etc/myx/backhaul
+    cat > /etc/myx/backhaul/client.toml << EOF
+[client]
+remote_addr = "${lip}:${bind}"
+transport = "${transport}"
+token = "${token}"
+connection_pool = 8
+aggressive_pool = false
+keepalive_period = 75
+nodelay = true
+retry_interval = 3
+dial_timeout = 10
+sniffer = false
+web_port = ${web}
+sniffer_log = "/etc/myx/backhaul/log.json"
+log_level = "info"
+EOF
+
+    create_service "myx-backhaul-client.service" "MyX Tunnel - Backhaul Client (Service)" \
+        "$MYX_BIN/backhaul -c /etc/myx/backhaul/client.toml" ""
+    systemctl enable --now myx-backhaul-client.service >/dev/null 2>&1
+
+    save_tunnel "backhaul-client" "proto=backhaul" "role=service" "listener_ip=$lip" \
+        "bind=$bind" "transport=$transport" "token=$token" "web=$web"
+    msg_ok "Backhaul tunnel created"
+    echo -e " Users connect to: ${GREEN}${lip}${NC} (listener ports)  -->  local services on this server"
+}
+
 # ---------- IPTables ----------
 setup_iptables_kharej() {
     enable_ip_forward
@@ -524,6 +652,7 @@ wizard() {
     echo -e " ${WHITE}[ 3 ]${NC} ${GREEN}Gost${NC}     - Encrypted relay tunnel (anti-DPI)"
     echo -e " ${WHITE}[ 4 ]${NC} ${GREEN}IPTables${NC} - Kernel NAT forward (fastest, no encryption)"
     echo -e " ${WHITE}[ 5 ]${NC} ${GREEN}Socat${NC}    - Simple forward"
+    echo -e " ${WHITE}[ 6 ]${NC} ${GREEN}Backhaul${NC} - Next-gen tunnel (UDP over TCP, high concurrency)"
     echo ""
     read -rp " Select protocol: " p
     case "$p" in
@@ -532,6 +661,7 @@ wizard() {
         3) local sproto="gost" ;;
         4) local sproto="iptables" ;;
         5) local sproto="socat" ;;
+        6) local sproto="backhaul" ;;
         *) msg_err "Invalid choice"; return 1 ;;
     esac
 
@@ -547,12 +677,14 @@ wizard() {
                 gost)     setup_gost_kharej ;;
                 iptables) setup_iptables_kharej ;;
                 socat)    setup_socat_kharej ;;
+                backhaul) setup_backhaul_listener ;;
             esac
             ;;
         service)
             case "$sproto" in
                 frp)  setup_frp_iran ;;
                 gost) setup_gost_iran ;;
+                backhaul) setup_backhaul_service ;;
                 *)    msg_err "${sproto} only runs on the LISTENER side (the server users connect to). Run the wizard on the ${listen_side} server for this protocol."; return 1 ;;
             esac
             ;;
@@ -583,6 +715,7 @@ status_tunnels() {
             gost)     [ "$role" = "kharej" ] && u="myx-gost-relay.service" || u="myx-gost-iran.service" ;;
             iptables) u="myx-ipt-${listen}.service" ;;
             socat)    u="myx-socat-${listen}.service" ;;
+            backhaul) [ "$role" = "listener" ] && u="myx-backhaul-server.service" || u="myx-backhaul-client.service" ;;
         esac
         if systemctl is-active --quiet "$u" 2>/dev/null; then
             dot="${GREEN}[● RUNNING]${NC}"
@@ -620,6 +753,7 @@ remove_tunnel_menu() {
         gost)     [ "$role" = "kharej" ] && u="myx-gost-relay.service" || u="myx-gost-iran.service" ;;
         iptables) u="myx-ipt-${listen}.service" ;;
         socat)    u="myx-socat-${listen}.service" ;;
+        backhaul) [ "$role" = "listener" ] && u="myx-backhaul-server.service" || u="myx-backhaul-client.service" ;;
     esac
     systemctl stop "$u" 2>/dev/null; systemctl disable "$u" 2>/dev/null
     rm -f "$MYX_SYS/$u"
@@ -762,7 +896,7 @@ anti_dpi_menu() {
 update_myx() {
     clear; banner
     msg_info "Updating binaries..."
-    rm -f "$MYX_BIN/frps" "$MYX_BIN/frpc" "$MYX_BIN/realm" "$MYX_BIN/gost"
+    rm -f "$MYX_BIN/frps" "$MYX_BIN/frpc" "$MYX_BIN/realm" "$MYX_BIN/gost" "$MYX_BIN/backhaul"
     install_deps
     local units; units=$(systemctl list-units --type=service --all 2>/dev/null | grep -oP 'myx-[\w.-]+\.service' | sort -u)
     for u in $units; do systemctl restart "$u" 2>/dev/null; done
@@ -778,7 +912,7 @@ uninstall_myx() {
     local units; units=$(systemctl list-units --type=service --all 2>/dev/null | grep -oP 'myx-[\w.-]+\.service' | sort -u)
     for u in $units; do systemctl stop "$u" 2>/dev/null; systemctl disable "$u" 2>/dev/null; rm -f "$MYX_SYS/$u"; done
     systemctl daemon-reload
-    rm -rf "$MYX_DIR" "$MYX_BIN/myx" "$MYX_BIN/frps" "$MYX_BIN/frpc" "$MYX_BIN/realm" "$MYX_BIN/gost"
+    rm -rf "$MYX_DIR" "$MYX_BIN/myx" "$MYX_BIN/frps" "$MYX_BIN/frpc" "$MYX_BIN/realm" "$MYX_BIN/gost" "$MYX_BIN/backhaul"
     msg_ok "MyX Tunnel completely uninstalled"
     sleep 2
     exit 0
