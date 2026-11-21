@@ -12,7 +12,7 @@
 #   Compatible: Ubuntu 22.04 / 24.04 (Debian 11/12)
 # ============================================================
 
-MYX_VERSION="1.2.0"
+MYX_VERSION="1.2.1"
 MYX_DIR="/etc/myx"
 MYX_TUN_DIR="$MYX_DIR/tunnels"
 MYX_BIN="/usr/local/bin"
@@ -41,6 +41,7 @@ cat << 'EOF'
 EOF
 echo -e "${NC} ${WHITE}High Speed Reverse Tunnel${NC} ${GRAY}| v${MYX_VERSION} | Iran <-> Kharej${NC}"
 echo -e "${GRAY}--------------------------------------------------------------${NC}"
+echo -e "${GRAY} Install: bash <(curl -Ls https://raw.githubusercontent.com/MOHAMMAD-a12/myx-tunnel/main/myx-tunnel.sh)${NC}"
 }
 
 check_root() {

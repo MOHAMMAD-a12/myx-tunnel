@@ -20,11 +20,15 @@ myx menu     # باز کردن منو
 myx version  # نمایش نسخه
 ```
 
-برای انتشار عمومی (بعد از آپلود روی گیت‌هاب خودتان):
+## 📢 دستور رسمی انتشار (برای ویدیو و توضیحات یوتیوب)
+
+این دستور رو کپی کن و برای بیننده‌هات توی توضیحات ویدیو، پینت کامنت یا پست‌هات بذار:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/YOUR-USER/myx-tunnel/main/myx-tunnel.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/MOHAMMAD-a12/myx-tunnel/main/myx-tunnel.sh)
 ```
+
+این دستور روی **هر دو سرور ایران و خارج** کار می‌کنه — بعد از اجرا، خود Wizard سه مرحله‌ای باز می‌شه و کاربر حالت (Classic / Reverse) و سرورش رو انتخاب می‌کنه.
 
 ---
 
